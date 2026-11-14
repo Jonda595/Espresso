@@ -1,3 +1,4 @@
 {
-  "Hello World": ["helloworld.py", "0.0.1"]
+  "Hello World": ["helloworld.py", "0.0.1"],
+  "Sum": ["sum.py", "0.1.0"]
 }
