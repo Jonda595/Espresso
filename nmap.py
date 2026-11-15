@@ -1,21 +1,32 @@
 import socket
+import select
 
-target = input("Cíl (IP/doména): ")
+target = input("Cíl: ")
+ports = int(input("Range: ")) + 1
 
-ports = input("Range: ")
-
-print(f"\nScanning {target}...\n")
-
-for port in range(int(ports)):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(0.2)
+for port in range(ports):
+    s = socket.socket()
+    s.setblocking(False)
 
     try:
         s.connect((target, port))
-        print(f"[OPEN]   {port}")
-    except (socket.timeout, ConnectionRefusedError, OSError):
-        print(f"[CLOSED/FILTERED] {port}")
-    finally:
-        s.close()
+    except OSError:
+        pass
 
-print("\nScan complete.")
+    poll = select.poll()
+    poll.register(s, select.POLLOUT)
+
+    events = poll.poll(100)
+
+    if events:
+        err = s.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+
+        if err == 0:
+            print(f"[OPEN] {port}")
+        else:
+            print(f"[CLOSED] {port}")
+    else:
+        print(f"[TIMEOUT] {port}")
+
+    poll.unregister(s)
+    s.close()
