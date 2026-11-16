@@ -5,7 +5,10 @@ HOSTS = {
     "gateway": {
         "ip": "192.168.56.1",
         "ports": [22, 80],
-        "users": {"admin": "lab-gateway-42", "operator": "welcome1"}
+        "users": {
+            "admin": "lab-gateway-42",
+            "operator": "welcome1"
+        }
     },
     "web": {
         "ip": "192.168.56.10",
@@ -15,18 +18,37 @@ HOSTS = {
     "files": {
         "ip": "192.168.56.20",
         "ports": [22, 21],
-        "users": {"backup": "winter-lab-2026", "analyst": "blue-team-19"}
+        "users": {
+            "backup": "winter-lab-2026",
+            "analyst": "blue-team-19"
+        }
     },
     "db": {
         "ip": "192.168.56.30",
         "ports": [22, 5432],
-        "users": {"postgres": "db-lab-2026", "dba": "cobalt-bridge-55"}
+        "users": {
+            "postgres": "db-lab-2026",
+            "dba": "cobalt-bridge-55"
+        }
     }
 }
 
-current_host = "localhost"
-current_dir = "/"
-history = []
+VULNERABILITIES = {
+    "web": {
+        "CVE-2021-41773": {
+            "name": "Apache Path Traversal",
+            "severity": "CRITICAL",
+            "vulnerable": True
+        }
+    },
+    "gateway": {
+        "CVE-2023-0001": {
+            "name": "Simulated SSH Authentication Flaw",
+            "severity": "HIGH",
+            "vulnerable": True
+        }
+    }
+}
 
 FILES = {
     "/": ["etc", "home", "var", "tmp"],
@@ -48,6 +70,10 @@ CONTENTS = {
     "/var/log/system.log": "System boot completed\nNetwork interface initialized"
 }
 
+current_host = "localhost"
+current_dir = "/"
+history = []
+
 
 def pause():
     time.sleep(0.4)
@@ -63,13 +89,13 @@ Type 'help' for commands.
 """)
 
 
-def resolve_host(name):
-    if name in HOSTS:
-        return HOSTS[name]["ip"]
+def resolve_host(target):
+    if target in HOSTS:
+        return HOSTS[target]["ip"]
 
-    for host in HOSTS:
-        if HOSTS[host]["ip"] == name:
-            return name
+    for name in HOSTS:
+        if HOSTS[name]["ip"] == target:
+            return target
 
     return None
 
@@ -78,7 +104,7 @@ def scan(target, version=False):
     host = None
 
     for name in HOSTS:
-        if HOSTS[name]["ip"] == target or name == target:
+        if name == target or HOSTS[name]["ip"] == target:
             host = HOSTS[name]
             break
 
@@ -119,10 +145,42 @@ def ssh(hostname):
     if users.get(username) == password:
         print("Authentication successful.")
         print("Connected to " + hostname)
+
         global current_host
         current_host = hostname
     else:
         print("Permission denied.")
+
+
+def exploit(host, cve):
+    if host not in VULNERABILITIES:
+        print("No known vulnerabilities.")
+        return
+
+    vuln = VULNERABILITIES[host].get(cve)
+
+    if vuln is None:
+        print("CVE not found.")
+        return
+
+    print("[*] Target:", host)
+    print("[*] Vulnerability:", vuln["name"])
+    print("[*] Severity:", vuln["severity"])
+
+    pause()
+    print("[*] Checking vulnerability...")
+    pause()
+
+    if vuln["vulnerable"]:
+        print("[+] Vulnerability confirmed!")
+        pause()
+        print("[+] Simulated exploit successful!")
+        print("[+] Lab access granted.")
+
+        global current_host
+        current_host = host
+    else:
+        print("[-] Target is patched.")
 
 
 def ping(target):
@@ -136,8 +194,10 @@ def ping(target):
 
     for i in range(4):
         pause()
-        print("64 bytes from " + ip + ": time=" +
-              str(random.randint(2, 40)) + " ms")
+        print(
+            "64 bytes from " + ip +
+            ": time=" + str(random.randint(2, 40)) + " ms"
+        )
 
 
 def traceroute(target):
@@ -151,8 +211,10 @@ def traceroute(target):
 
     for i in range(1, 4):
         pause()
-        print(str(i) + " 192.168.56." +
-              str(random.randint(1, 254)))
+        print(
+            str(i) + " 192.168.56." +
+            str(random.randint(1, 254))
+        )
 
     print("Destination reached.")
 
@@ -171,10 +233,13 @@ def filesystem(command):
 
         if target == "..":
             current_dir = current_dir.rsplit("/", 1)[0] or "/"
+
         elif target == "/":
             current_dir = "/"
+
         else:
             path = current_dir.rstrip("/") + "/" + target
+
             if path in FILES:
                 current_dir = path
             else:
@@ -183,6 +248,7 @@ def filesystem(command):
     elif command.startswith("cat "):
         name = command[4:].strip()
         path = current_dir.rstrip("/") + "/" + name
+
         print(CONTENTS.get(path, "File not found."))
 
     elif command.startswith("grep "):
@@ -203,20 +269,23 @@ def filesystem(command):
 def help_menu():
     print("""
 NETWORK:
-  nmap HOST       Simulated port scan
-  nmap -sV HOST   Scan with service versions
-  ping HOST       Simulated ping
+  nmap HOST
+  nmap -sV HOST
+  ping HOST
   traceroute HOST
 
 REMOTE:
-  ssh HOST        Simulated SSH login
+  ssh HOST
+
+EXPLOITATION:
+  exploit HOST CVE
 
 FILES:
-  ls              List files
-  cd DIR          Change directory
-  pwd             Current directory
-  cat FILE        Read file
-  grep TEXT FILE  Search file
+  ls
+  cd DIR
+  pwd
+  cat FILE
+  grep TEXT FILE
 
 SYSTEM:
   whoami
@@ -236,7 +305,7 @@ OTHER:
 
 def execute(command):
     if not command:
-        return
+        return True
 
     history.append(command)
 
@@ -264,7 +333,17 @@ def execute(command):
     elif command.startswith("ssh "):
         ssh(command[4:].strip())
 
-    elif command in ("ls", "pwd") or command.startswith(("cd ", "cat ", "grep ")):
+    elif command.startswith("exploit "):
+        parts = command.split()
+
+        if len(parts) == 3:
+            exploit(parts[1], parts[2])
+        else:
+            print("Usage: exploit HOST CVE")
+
+    elif command in ("ls", "pwd") or command.startswith(
+        ("cd ", "cat ", "grep ")
+    ):
         filesystem(command)
 
     elif command == "whoami":
@@ -305,11 +384,14 @@ def main():
     while True:
         try:
             command = input(current_host + ":" + current_dir + "$ ")
+
             if execute(command) is False:
                 print("Exiting IRONCLAD.")
                 break
+
         except KeyboardInterrupt:
             print("\nInterrupted.")
+
         except Exception as error:
             print("Error:", error)
 
